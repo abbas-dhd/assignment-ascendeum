@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "./styles.css";
 enum GameState {
   started,
@@ -12,35 +12,31 @@ type BoxPosition = {
 };
 export default function App() {
   const timer = useRef<number | null>(null);
-  const intervalRef = useRef<number | null>(null);
-  const [gameInterval, setGameInterval] = useState(1); // in milliseconds
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [gameInterval, setGameInterval] = useState(1); // in seconds
   const [gameState, setGameState] = useState(GameState.stopped);
 
   const [boxPosition, setBoxPosition] = useState<BoxPosition>({ x: 0, y: 0 });
   const [score, setScore] = useState<number[]>([]);
 
+  const startGameOnInterval = () => {
+    // reset if any previous timers
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    // position box first instantly
+    setBoxPosition(getRandomBoxPosition());
+
+    // and now start placing objects on intervals
+    intervalRef.current = setInterval(() => {
+      // start positiong box a random
+      setBoxPosition(getRandomBoxPosition());
+    }, gameInterval * 1000);
+  };
+
   useEffect(() => {
-    console.log("effect ran");
     if (gameState == GameState.started) {
-      let x = Math.random() * (500 - 25);
-      let y = Math.random() * (500 - 25);
-
-      setBoxPosition({
-        x,
-        y,
-      });
-
-      intervalRef.current = setInterval(() => {
-        // start positiong box a random
-
-        let x = Math.random() * (500 - 25);
-        let y = Math.random() * (500 - 25);
-
-        setBoxPosition({
-          x,
-          y,
-        });
-      }, gameInterval * 1000);
+      startGameOnInterval();
     }
 
     return () => {
@@ -48,31 +44,38 @@ export default function App() {
         clearInterval(intervalRef.current);
       }
     };
+    // not adding startGameOnInterval as dependency as we only want to invoke effect when game state changes
   }, [gameState]);
 
-  const startGameInterval = () => {
+  const getRandomBoxPosition = (): BoxPosition => {
+    const x = Math.random() * (500 - 25);
+    const y = Math.random() * (500 - 25);
+
+    return { x, y };
+  };
+
+  const startGame = () => {
+    timer.current = Date.now();
+    setGameState(GameState.started);
+
+    // start timer
+    timer.current = Date.now();
+  };
+
+  const resetGame = () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
-    let x = Math.random() * (500 - 25);
-    let y = Math.random() * (500 - 25);
+    setGameState(GameState.stopped);
+    setBoxPosition({ x: 0, y: 0 });
+    setScore([]);
+  };
 
-    setBoxPosition({
-      x,
-      y,
-    });
-
-    intervalRef.current = setInterval(() => {
-      // start positiong box a random
-
-      let x = Math.random() * (500 - 25);
-      let y = Math.random() * (500 - 25);
-
-      setBoxPosition({
-        x,
-        y,
-      });
-    }, gameInterval * 1000);
+  const pauseGame = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    setGameState(GameState.paused);
   };
 
   return (
@@ -81,27 +84,9 @@ export default function App() {
         style={{ display: "flex", justifyContent: "flex-start", width: "100" }}
       >
         <Buttons
-          onStart={() => {
-            timer.current = Date.now();
-            setGameState(GameState.started);
-
-            // start timer
-            timer.current = Date.now();
-          }}
-          onPause={() => {
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current);
-            }
-            setGameState(GameState.paused);
-          }}
-          onReset={() => {
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current);
-            }
-            setGameState(GameState.stopped);
-            setBoxPosition({ x: 0, y: 0 });
-            setScore([]);
-          }}
+          onStart={() => startGame()}
+          onPause={() => pauseGame()}
+          onReset={() => resetGame()}
         />
         <input
           type="number"
@@ -111,7 +96,7 @@ export default function App() {
           placeholder="Interval"
           value={gameInterval}
           onChange={(e) => {
-            let _interval = Number(e.currentTarget.value);
+            const _interval = Number(e.currentTarget.value);
             if (isNaN(_interval)) {
               setGameInterval(1); // setting 1 second by default
             } else {
@@ -124,13 +109,14 @@ export default function App() {
         boxPosition={boxPosition}
         showBox={gameState === GameState.started}
         onBoxClick={() => {
-          let timeDiff: number = Date.now() - (timer.current ?? 0);
+          const timeDiff: number = Date.now() - (timer.current ?? 0);
           console.log(timeDiff / 1000);
           setScore((prev) => {
             return [...prev, timeDiff / 1000];
           });
 
-          startGameInterval();
+          startGameOnInterval();
+
           // timer.current = Date.now();
         }}
       />
